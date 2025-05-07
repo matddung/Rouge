@@ -86,7 +86,12 @@ FName URogueAnimInstance::GetAttackMontageSectionName(int32 Section)
 	return FName(*FString::Printf(TEXT("Attack%d"), Section));
 }
 
-void URogueAnimInstance::AnimNotify_DodgeEffect()
+void URogueAnimInstance::AnimNotify_DodgeEffectStart()
 {
-	OnDodgeEffect.Broadcast();
+	OnDodgeEffectStart.Broadcast();
+}
+
+void URogueAnimInstance::AnimNotify_DodgeEffectEnd()
+{
+	OnDodgeEffectEnd.Broadcast();
 }

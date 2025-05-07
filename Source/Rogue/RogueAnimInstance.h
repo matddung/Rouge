@@ -11,7 +11,8 @@ DECLARE_MULTICAST_DELEGATE(FOnAttackHitCheckDelegate);
 DECLARE_MULTICAST_DELEGATE(FOnDashAttackHitCheckDelegate);
 DECLARE_MULTICAST_DELEGATE(FOnJumpAttackHitCheckDelegate);
 DECLARE_MULTICAST_DELEGATE(FOnSkillHitCheckDelegate);
-DECLARE_MULTICAST_DELEGATE(FOnDodgeEffectDelegate);
+DECLARE_MULTICAST_DELEGATE(FOnDodgeEffectStartDelegate);
+DECLARE_MULTICAST_DELEGATE(FOnDodgeEffectEndDelegate);
 
 /**
  * 
@@ -35,7 +36,8 @@ public:
 	FOnDashAttackHitCheckDelegate OnDashAttackHitCheck;
 	FOnJumpAttackHitCheckDelegate OnJumpAttackHitCheck;
 	FOnSkillHitCheckDelegate OnSkillHitCheck;
-	FOnDodgeEffectDelegate OnDodgeEffect;
+	FOnDodgeEffectStartDelegate OnDodgeEffectStart;
+	FOnDodgeEffectEndDelegate OnDodgeEffectEnd;
 
 	void SetDeadAnim() { IsDead = true; }
 
@@ -58,7 +60,10 @@ private:
 	FName GetAttackMontageSectionName(int32 Section);
 
 	UFUNCTION()
-	void AnimNotify_DodgeEffect();
+	void AnimNotify_DodgeEffectStart();
+
+	UFUNCTION()
+	void AnimNotify_DodgeEffectEnd();
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Pawn, Meta = (AllowPrivateAccess = true))

@@ -112,8 +112,12 @@ void ARogueCharacter::PostInitializeComponents()
         DoSkillHit();
     });
 
-    RogueAnim->OnDodgeEffect.AddLambda([this]() {
-        PlayDodgeEffect();
+    RogueAnim->OnDodgeEffectStart.AddLambda([this]() {
+        HandleDodgeEffectStart();
+    });
+
+    RogueAnim->OnDodgeEffectEnd.AddLambda([this]() {
+        HandleDodgeEffectEnd();
     });
 
     CharacterStat->OnHPIsZero.AddLambda([this]() -> void {
@@ -581,7 +585,6 @@ void ARogueCharacter::Dodge()
     DodgeDirection = InputDir;
 
     bIsDodging = true;
-    bIsDodgeInvincible = true;
     bDidDodgeTeleport = false;
 
     if (DodgeMontage && RogueAnim)
@@ -590,34 +593,32 @@ void ARogueCharacter::Dodge()
     }
 }
 
-void ARogueCharacter::PerformDodgeTeleport()
+void ARogueCharacter::HandleDodgeEffectStart()
 {
-    FVector NewLocation = GetActorLocation() + DodgeDirection * DodgeDistance;
-    SetActorLocation(NewLocation, false, nullptr, ETeleportType::TeleportPhysics);
-    SetActorHiddenInGame(false);
-}
-
-void ARogueCharacter::PlayDodgeEffect()
-{
+    bIsDodgeInvincible = true;
+    SetActorHiddenInGame(true);
     if (DodgeEffect)
     {
-        FVector EffectLocation = GetActorLocation();
-        FRotator EffectRotation = GetActorRotation();
-
-        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), DodgeEffect, EffectLocation, EffectRotation, FVector(1));
+        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), DodgeEffect, GetActorLocation(), GetActorRotation());
     }
 
     if (!bDidDodgeTeleport)
     {
-        SetActorHiddenInGame(true);
-
         FVector NewLocation = GetActorLocation() + DodgeDirection * DodgeDistance;
-        SetActorLocation(NewLocation, false, nullptr, ETeleportType::TeleportPhysics);
+        FHitResult HitResult;
+        bool bMoved = SetActorLocation(NewLocation, true, &HitResult, ETeleportType::TeleportPhysics);
+
+        if (!bMoved)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Dodge blocked"));
+        }
 
         bDidDodgeTeleport = true;
     }
-    else
-    {
-        SetActorHiddenInGame(false);
-    }
+}
+
+void ARogueCharacter::HandleDodgeEffectEnd()
+{
+    bIsDodgeInvincible = false;
+    SetActorHiddenInGame(false);
 }

@@ -65,8 +65,8 @@ private:
 	void AttackCheck();
 
 	void Dodge();
-	void PerformDodgeTeleport();
-	void PlayDodgeEffect();
+	void HandleDodgeEffectStart();
+	void HandleDodgeEffectEnd();
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
