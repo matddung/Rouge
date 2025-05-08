@@ -65,6 +65,8 @@ private:
 	void HandleDodgeEffectStart();
 	void HandleDodgeEffectEnd();
 
+	void SpawnDamageText(AActor* DamagedActor, float Damage);
+
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	class USpringArmComponent* SpringArm;
@@ -139,7 +141,7 @@ private:
 	UPROPERTY()
 	UParticleSystemComponent* SkillEffectComponent = nullptr;
 
-	float SkillCooldownTime = 60;
+	float SkillCooldownTime = 30;
 	float LastSkillTime = -SkillCooldownTime;
 
 	bool bIsDodging = false;
@@ -162,17 +164,18 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Stat")
 	class URogueCharacterStatComponent* CharacterStat;
 
-	float DodgeStaminaCost = 20;
-	float SprintStaminaCostPerSec = 10;
-	float AttackStaminaCost = 10;
-	float DashAttackStaminaCost = 20;
-	float JumpStaminaCost = 10;
-	float JumpAttackStaminaCost = 10;
-	float SkillStaminaCost = 100;
+	float DodgeStaminaCost = 15;
+	float SprintStaminaCostPerSec = 5;
+	float AttackCost = 10;
+	float JumpStaminaCost = 5;
+	float SkillStaminaCost = 50;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> StatusWidgetClass;
 
 	UPROPERTY()
 	class URogueUserWidget* StatusWidget;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class AFloatingDamageActor> DamageTextActorClass;
 };

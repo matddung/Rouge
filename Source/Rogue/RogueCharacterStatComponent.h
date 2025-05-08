@@ -42,10 +42,10 @@ public:
 	int32 GetNextExp() const { return CurrentStatData ? CurrentStatData->NextExp : 0; }
 
 	float GetCurrentHP() const { return CurrentHP; }
-	float GetMaxHP() const { return CurrentStatData ? CurrentStatData->MaxHP : 1.0f; }
+	float GetMaxHP() const { return CurrentStatData ? CurrentStatData->MaxHP : 1; }
 
 	float GetCurrentStamina() const { return CurrentStamina; }
-	float GetMaxStamina() const { return CurrentStatData ? CurrentStatData->Stamina : 1.0f; }
+	float GetMaxStamina() const { return CurrentStatData ? CurrentStatData->Stamina : 1; }
 
 	int32 GetLevel() const { return Level; }
 

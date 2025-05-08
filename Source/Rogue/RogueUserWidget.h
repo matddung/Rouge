@@ -21,8 +21,8 @@ public:
     void UpdateHP(float Current, float Max);
     void UpdateStamina(float Current, float Max);
     void UpdateLevel(int32 Level);
-    void UpdateBarWidths(float MaxHP, float MaxStamina);
     void UpdateExpBar(int32 CurrentExp, int32 NextExp);
+    void UpdateSkillCooldown(float RemainingTime, float MaxCooldown);
 
 protected:
     UPROPERTY(meta = (BindWidget))
@@ -35,11 +35,11 @@ protected:
     UTextBlock* LevelText;
 
     UPROPERTY(meta = (BindWidget))
-    class USizeBox* SB_HP;
-
-    UPROPERTY(meta = (BindWidget))
-    class USizeBox* SB_Stamina;
-
-    UPROPERTY(meta = (BindWidget))
     class UProgressBar* ExpBar;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* SkillCooldownText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* SkillCooldownBar;
 };

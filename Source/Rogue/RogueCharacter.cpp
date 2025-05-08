@@ -1,10 +1,8 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "RogueCharacter.h"
 #include "RogueAnimInstance.h"
 #include "RogueCharacterStatComponent.h"
 #include "RogueUserWidget.h"
+#include "FloatingDamageActor.h"
 
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -97,8 +95,10 @@ void ARogueCharacter::Tick(float DeltaTime)
         StatusWidget->UpdateHP(CharacterStat->GetCurrentHP(), CharacterStat->GetMaxHP());
         StatusWidget->UpdateStamina(CharacterStat->GetCurrentStamina(), CharacterStat->GetMaxStamina());
         StatusWidget->UpdateLevel(CharacterStat->GetLevel());
-        StatusWidget->UpdateBarWidths(CharacterStat->GetMaxHP(), CharacterStat->GetMaxStamina());
         StatusWidget->UpdateExpBar(CharacterStat->GetCurrentExp(), CharacterStat->GetNextExp());
+        float CurrentTime = GetWorld()->GetTimeSeconds();
+        float RemainingCooldown = FMath::Max(0.0f, SkillCooldownTime - (CurrentTime - LastSkillTime));
+        StatusWidget->UpdateSkillCooldown(RemainingCooldown, SkillCooldownTime);
     }
 }
 
@@ -120,7 +120,7 @@ void ARogueCharacter::PostInitializeComponents()
 
         if (IsComboInputOn)
         {
-            if (!CharacterStat->ConsumeStamina(AttackStaminaCost))
+            if (!CharacterStat->ConsumeStamina(AttackCost))
             {
                 UE_LOG(LogTemp, Warning, TEXT("Not enough stamina for combo"));
                 return;
@@ -155,8 +155,8 @@ void ARogueCharacter::PostInitializeComponents()
 
     CharacterStat->OnHPIsZero.AddLambda([this]() -> void {
         UE_LOG(LogTemp, Warning, TEXT("OnHPIsZero"));
-        RogueAnim->SetDeadAnim();
         SetActorEnableCollision(false);
+        RogueAnim->SetDeadAnim();
      });
 }
 
@@ -169,6 +169,7 @@ float ARogueCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const&
     }
 
     float FinalDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
     UE_LOG(LogTemp, Warning, TEXT("Actor : %s took Damage : %f"), *GetName(), FinalDamage);
 
     CharacterStat->SetDamage(FinalDamage);
@@ -304,7 +305,7 @@ void ARogueCharacter::Attack()
 
     TargetSpeed = WalkSpeed;
 
-    if (!CharacterStat->ConsumeStamina(AttackStaminaCost))
+    if (!CharacterStat->ConsumeStamina(AttackCost))
     {
         UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to attack"));
         return;
@@ -318,7 +319,7 @@ void ARogueCharacter::Attack()
 
 void ARogueCharacter::DashAttack()
 {
-    if (!CharacterStat->ConsumeStamina(DashAttackStaminaCost))
+    if (!CharacterStat->ConsumeStamina(AttackCost))
     {
         UE_LOG(LogTemp, Warning, TEXT("Not enough stamina for dash attack"));
         return;
@@ -378,7 +379,7 @@ void ARogueCharacter::JumpAttack()
         return;
     }
 
-    if (!CharacterStat->ConsumeStamina(JumpAttackStaminaCost))
+    if (!CharacterStat->ConsumeStamina(AttackCost))
     {
         UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to jump attack"));
         return;
@@ -651,6 +652,8 @@ void ARogueCharacter::AttackCheck()
         {
             FDamageEvent DamageEvent;
             HitResult.Actor->TakeDamage(CharacterStat->GetAttack(), DamageEvent, GetController(), this);
+
+            SpawnDamageText(HitResult.GetActor(), CharacterStat->GetAttack());
         }
     }
 }
@@ -710,4 +713,21 @@ void ARogueCharacter::HandleDodgeEffectEnd()
 {
     bIsDodgeInvincible = false;
     SetActorHiddenInGame(false);
+}
+
+void ARogueCharacter::SpawnDamageText(AActor* DamagedActor, float Damage)
+{
+    if (!DamageTextActorClass || !DamagedActor) return;
+
+    UE_LOG(LogTemp, Warning, TEXT("SpawnDamageText: Target=%s Damage=%.1f"), *GetName(), Damage);
+
+    FVector TargetLocation = DamagedActor->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+    FActorSpawnParameters Params;
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    AFloatingDamageActor* DamageText = GetWorld()->SpawnActor<AFloatingDamageActor>(DamageTextActorClass, TargetLocation, FRotator::ZeroRotator, Params);
+    if (DamageText)
+    {
+        DamageText->SetDamage(Damage);
+    }
 }
