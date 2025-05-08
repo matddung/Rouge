@@ -4,6 +4,7 @@
 #include "RogueCharacter.h"
 #include "RogueAnimInstance.h"
 #include "RogueCharacterStatComponent.h"
+#include "RogueUserWidget.h"
 
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -47,7 +48,6 @@ ARogueCharacter::ARogueCharacter()
         GetMesh()->SetAnimInstanceClass(AttackAnim.Class);
     }
 
-    IsAttacking = false;
     MaxCombo = 4;
     AttackEndComboState();
 
@@ -63,6 +63,14 @@ void ARogueCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+    if (StatusWidgetClass)
+    {
+        StatusWidget = CreateWidget<URogueUserWidget>(GetWorld(), StatusWidgetClass);
+        if (StatusWidget)
+        {
+            StatusWidget->AddToViewport();
+        }
+    }
 }
 
 // Called every frame
@@ -73,6 +81,25 @@ void ARogueCharacter::Tick(float DeltaTime)
     float CurrentSpeed = GetCharacterMovement()->MaxWalkSpeed;
     float NewSpeed = FMath::FInterpTo(CurrentSpeed, TargetSpeed, DeltaTime, SpeedInterpRate);
     GetCharacterMovement()->MaxWalkSpeed = NewSpeed;
+
+    if (CharacterStat && !bWantsToSprint && !IsAttacking && !bIsJumpAttacking && !bIsDodging)
+    {
+        CharacterStat->RecoverStamina(DeltaTime);
+    }
+
+    if (bWantsToSprint && !CharacterStat->ConsumeStamina(SprintStaminaCostPerSec * DeltaTime))
+    {
+        StopSprinting();
+    }
+
+    if (StatusWidget && CharacterStat)
+    {
+        StatusWidget->UpdateHP(CharacterStat->GetCurrentHP(), CharacterStat->GetMaxHP());
+        StatusWidget->UpdateStamina(CharacterStat->GetCurrentStamina(), CharacterStat->GetMaxStamina());
+        StatusWidget->UpdateLevel(CharacterStat->GetLevel());
+        StatusWidget->UpdateBarWidths(CharacterStat->GetMaxHP(), CharacterStat->GetMaxStamina());
+        StatusWidget->UpdateExpBar(CharacterStat->GetCurrentExp(), CharacterStat->GetNextExp());
+    }
 }
 
 void ARogueCharacter::PostInitializeComponents()
@@ -93,6 +120,12 @@ void ARogueCharacter::PostInitializeComponents()
 
         if (IsComboInputOn)
         {
+            if (!CharacterStat->ConsumeStamina(AttackStaminaCost))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Not enough stamina for combo"));
+                return;
+            }
+
             AttackStartComboState();
             RogueAnim->JumpToAttackMontageSection(CurrentCombo);
         }
@@ -139,6 +172,16 @@ float ARogueCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const&
     UE_LOG(LogTemp, Warning, TEXT("Actor : %s took Damage : %f"), *GetName(), FinalDamage);
 
     CharacterStat->SetDamage(FinalDamage);
+
+    if (CharacterStat->GetCurrentHP() <= 0 && EventInstigator)
+    {
+        ARogueCharacter* Killer = Cast<ARogueCharacter>(EventInstigator->GetPawn());
+        if (Killer && Killer != this)
+        {
+            Killer->CharacterStat->AddExp(10000);
+        }
+    }
+
     return FinalDamage;
 }
 
@@ -261,6 +304,12 @@ void ARogueCharacter::Attack()
 
     TargetSpeed = WalkSpeed;
 
+    if (!CharacterStat->ConsumeStamina(AttackStaminaCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to attack"));
+        return;
+    }
+
     AttackStartComboState();
     RogueAnim->PlayAttackMontage();
     RogueAnim->JumpToAttackMontageSection(CurrentCombo);
@@ -269,6 +318,12 @@ void ARogueCharacter::Attack()
 
 void ARogueCharacter::DashAttack()
 {
+    if (!CharacterStat->ConsumeStamina(DashAttackStaminaCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina for dash attack"));
+        return;
+    }
+
     TargetSpeed = WalkSpeed;
     IsAttacking = true;
 
@@ -320,6 +375,12 @@ void ARogueCharacter::JumpAttack()
 {
     if (bIsJumpAttacking || IsAttacking || !JumpAttackMontage || !RogueAnim)
     {
+        return;
+    }
+
+    if (!CharacterStat->ConsumeStamina(JumpAttackStaminaCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to jump attack"));
         return;
     }
 
@@ -376,6 +437,14 @@ void ARogueCharacter::DoJumpAttackHit()
 
 void ARogueCharacter::UseSkill()
 {
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    if (CurrentTime - LastSkillTime < SkillCooldownTime)
+    {
+        float RemainingTime = SkillCooldownTime - (CurrentTime - LastSkillTime);
+        UE_LOG(LogTemp, Warning, TEXT("Skill is on cooldown: %.1f seconds left"), RemainingTime);
+        return;
+    }
+
     if (IsAttacking || bIsJumpAttacking || bIsSkillInvincible)
     {
         UE_LOG(LogTemp, Warning, TEXT("Cannot use skill now"));
@@ -387,6 +456,14 @@ void ARogueCharacter::UseSkill()
         UE_LOG(LogTemp, Warning, TEXT("SkillMontage or AnimInstance missing"));
         return;
     }
+
+    if (!CharacterStat->ConsumeStamina(SkillStaminaCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to use skill"));
+        return;
+    }
+
+    LastSkillTime = CurrentTime;
 
     IsAttacking = true;
     bIsSkillInvincible = true;
@@ -453,6 +530,12 @@ void ARogueCharacter::Landed(const FHitResult& Hit)
 
 void ARogueCharacter::Jump()
 {
+    if (!CharacterStat->ConsumeStamina(JumpStaminaCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to jump"));
+        return;
+    }
+
     if (IsAttacking || bIsJumpAttacking || bIsDodging)
     {
         UE_LOG(LogTemp, Warning, TEXT("Cannot jump while attacking"));
@@ -575,6 +658,12 @@ void ARogueCharacter::AttackCheck()
 void ARogueCharacter::Dodge()
 {
     if (IsAttacking || bIsDodging || bIsJumpAttacking || bIsSkillInvincible || RogueAnim->IsInAir) return;
+
+    if (!CharacterStat->ConsumeStamina(DodgeStaminaCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to dodge"));
+        return;
+    }
 
     FVector InputDir = GetLastMovementInputVector().GetSafeNormal();
     if (InputDir.IsNearlyZero())

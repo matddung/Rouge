@@ -22,8 +22,6 @@ URogueGameInstance::URogueGameInstance()
 void URogueGameInstance::Init()
 {
 	Super::Init();
-
-	UE_LOG(LogTemp, Warning, TEXT("%d"), GetRogueCharacterData(20)->Level);
 }
 
 FRogueCharacterData* URogueGameInstance::GetRogueCharacterData(int32 Level)

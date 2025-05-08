@@ -30,6 +30,7 @@ void URogueAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		}
 	}
 }
+
 void URogueAnimInstance::PlayAttackMontage()
 {
 	if (!ensureMsgf(!IsDead, TEXT("IsDead true")))

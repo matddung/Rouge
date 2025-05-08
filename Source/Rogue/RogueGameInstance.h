@@ -13,7 +13,7 @@ struct FRogueCharacterData : public FTableRowBase
 	GENERATED_BODY()
 
 public:
-	FRogueCharacterData() : Level(1), MaxHP(100.0f), Attack(10.0f), NextExp(30) {}
+	FRogueCharacterData() : Level(1), MaxHP(100), Attack(10), Stamina(110), NextExp(30) {}
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	int32 Level;
@@ -23,6 +23,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	float Attack;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
+	float Stamina;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	int32 NextExp;

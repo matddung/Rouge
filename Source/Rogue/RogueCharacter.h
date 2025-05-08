@@ -30,9 +30,6 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	UPROPERTY(VisibleAnywhere, Category = "Stat")
-	class URogueCharacterStatComponent* CharacterStat;
-
 private:
 	void MoveForward(float Value);
 	void MoveRight(float Value);
@@ -97,7 +94,7 @@ private:
 	bool bWantsToSprint = false;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	bool IsAttacking;
+	bool IsAttacking = false;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
 	bool CanNextCombo;
@@ -142,6 +139,9 @@ private:
 	UPROPERTY()
 	UParticleSystemComponent* SkillEffectComponent = nullptr;
 
+	float SkillCooldownTime = 60;
+	float LastSkillTime = -SkillCooldownTime;
+
 	bool bIsDodging = false;
 	bool bIsDodgeInvincible = false;
 	FVector DodgeDirection;
@@ -158,4 +158,21 @@ private:
 	UParticleSystem* DodgeEffect;
 
 	bool bDidDodgeTeleport = false;
+
+	UPROPERTY(VisibleAnywhere, Category = "Stat")
+	class URogueCharacterStatComponent* CharacterStat;
+
+	float DodgeStaminaCost = 20;
+	float SprintStaminaCostPerSec = 10;
+	float AttackStaminaCost = 10;
+	float DashAttackStaminaCost = 20;
+	float JumpStaminaCost = 10;
+	float JumpAttackStaminaCost = 10;
+	float SkillStaminaCost = 100;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> StatusWidgetClass;
+
+	UPROPERTY()
+	class URogueUserWidget* StatusWidget;
 };
