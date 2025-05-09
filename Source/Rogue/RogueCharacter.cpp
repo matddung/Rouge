@@ -262,6 +262,51 @@ void ARogueCharacter::StopSprinting()
     TargetSpeed = WalkSpeed;
 }
 
+
+
+void ARogueCharacter::Landed(const FHitResult& Hit)
+{
+    Super::Landed(Hit);
+
+    bIsJumpAttacking = false;
+}
+
+void ARogueCharacter::Jump()
+{
+    if (!CharacterStat->ConsumeStamina(JumpStaminaCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to jump"));
+        return;
+    }
+
+    if (IsAttacking || bIsJumpAttacking || bIsDodging)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cannot jump while attacking"));
+        return;
+    }
+
+    Super::Jump();
+}
+
+
+
+void ARogueCharacter::SpawnDamageText(AActor* DamagedActor, float Damage)
+{
+    if (!DamageTextActorClass || !DamagedActor) return;
+
+    UE_LOG(LogTemp, Warning, TEXT("SpawnDamageText: Target=%s Damage=%.1f"), *GetName(), Damage);
+
+    FVector TargetLocation = DamagedActor->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+    FActorSpawnParameters Params;
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    AFloatingDamageActor* DamageText = GetWorld()->SpawnActor<AFloatingDamageActor>(DamageTextActorClass, TargetLocation, FRotator::ZeroRotator, Params);
+    if (DamageText)
+    {
+        DamageText->SetDamage(Damage);
+    }
+}
+
 void ARogueCharacter::Attack()
 {
     if (bIsJumpAttacking || bIsDodging || IsHidden())
@@ -363,7 +408,6 @@ void ARogueCharacter::DoDashAttackHit()
                 float DashDamage = CharacterStat->GetAttack() * 1.5;
                 FDamageEvent DamageEvent;
                 HitActor->TakeDamage(DashDamage, DamageEvent, GetController(), this);
-
                 if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitActor))
                 {
                     SpawnDamageText(HitActor, DashDamage);
@@ -438,7 +482,6 @@ void ARogueCharacter::DoJumpAttackHit()
         float Damage = CharacterStat->GetAttack() * 1.25;
         FDamageEvent DamageEvent;
         HitResult.GetActor()->TakeDamage(Damage, DamageEvent, GetController(), this);
-
         if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitResult.GetActor()))
         {
             SpawnDamageText(HitResult.GetActor(), Damage);
@@ -535,30 +578,6 @@ void ARogueCharacter::DoSkillHit()
 #if WITH_EDITOR
     DrawDebugSphere(GetWorld(), GetActorLocation(), 550, 24, FColor::Red, false, 1);
 #endif
-}
-
-void ARogueCharacter::Landed(const FHitResult& Hit)
-{
-    Super::Landed(Hit);
-
-    bIsJumpAttacking = false;
-}
-
-void ARogueCharacter::Jump()
-{
-    if (!CharacterStat->ConsumeStamina(JumpStaminaCost))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to jump"));
-        return;
-    }
-
-    if (IsAttacking || bIsJumpAttacking || bIsDodging)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot jump while attacking"));
-        return;
-    }
-
-    Super::Jump();
 }
 
 void ARogueCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
@@ -667,7 +686,6 @@ void ARogueCharacter::AttackCheck()
         {
             FDamageEvent DamageEvent;
             HitResult.Actor->TakeDamage(CharacterStat->GetAttack(), DamageEvent, GetController(), this);
-
             if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitResult.GetActor()))
             {
                 SpawnDamageText(HitResult.GetActor(), CharacterStat->GetAttack());
@@ -731,21 +749,4 @@ void ARogueCharacter::HandleDodgeEffectEnd()
 {
     bIsDodgeInvincible = false;
     SetActorHiddenInGame(false);
-}
-
-void ARogueCharacter::SpawnDamageText(AActor* DamagedActor, float Damage)
-{
-    if (!DamageTextActorClass || !DamagedActor) return;
-
-    UE_LOG(LogTemp, Warning, TEXT("SpawnDamageText: Target=%s Damage=%.1f"), *GetName(), Damage);
-
-    FVector TargetLocation = DamagedActor->GetActorLocation() + FVector(0.f, 0.f, 100.f);
-    FActorSpawnParameters Params;
-    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-    AFloatingDamageActor* DamageText = GetWorld()->SpawnActor<AFloatingDamageActor>(DamageTextActorClass, TargetLocation, FRotator::ZeroRotator, Params);
-    if (DamageText)
-    {
-        DamageText->SetDamage(Damage);
-    }
 }

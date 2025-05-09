@@ -12,7 +12,7 @@ class ROGUE_API ARogueCharacter : public ACharacter
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's properties
+	// Sets default values for this character's propertiesS
 	ARogueCharacter();
 
 protected:
@@ -93,7 +93,19 @@ private:
 	float SpeedInterpRate = 4;
 
 	float TargetSpeed;
-	bool bWantsToSprint = false;
+	bool bWantsToSprint = false;	
+
+	UPROPERTY(VisibleAnywhere, Category = "Stat")
+	class URogueCharacterStatComponent* CharacterStat;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> StatusWidgetClass;
+
+	UPROPERTY()
+	class URogueUserWidget* StatusWidget;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class AFloatingDamageActor> DamageTextActorClass;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
 	bool IsAttacking = false;
@@ -161,21 +173,9 @@ private:
 
 	bool bDidDodgeTeleport = false;
 
-	UPROPERTY(VisibleAnywhere, Category = "Stat")
-	class URogueCharacterStatComponent* CharacterStat;
-
 	float DodgeStaminaCost = 15;
 	float SprintStaminaCostPerSec = 5;
 	float AttackCost = 10;
 	float JumpStaminaCost = 5;
 	float SkillStaminaCost = 50;
-
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<UUserWidget> StatusWidgetClass;
-
-	UPROPERTY()
-	class URogueUserWidget* StatusWidget;
-
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<class AFloatingDamageActor> DamageTextActorClass;
 };

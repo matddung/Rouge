@@ -6,7 +6,7 @@
 
 AFloatingDamageActor::AFloatingDamageActor()
 {
-    PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true;
 
     WidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("WidgetComponent"));
     WidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
@@ -24,6 +24,22 @@ void AFloatingDamageActor::BeginPlay()
 {
     Super::BeginPlay();
     SetLifeSpan(LifeTime);
+    ElapsedTime = 0.0f;
+}
+
+void AFloatingDamageActor::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    FVector NewLocation = GetActorLocation();
+    NewLocation.Z += RiseSpeed * DeltaTime;
+    SetActorLocation(NewLocation);
+
+    ElapsedTime += DeltaTime;
+    if (ElapsedTime >= LifeTime)
+    {
+        Destroy();
+    }
 }
 
 void AFloatingDamageActor::SetDamage(float Damage)

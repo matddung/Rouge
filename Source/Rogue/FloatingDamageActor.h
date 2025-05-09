@@ -19,10 +19,17 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void Tick(float DeltaTime) override;
 
 private:
     UPROPERTY(VisibleAnywhere)
     class UWidgetComponent* WidgetComponent;
 
     float LifeTime = 1.2f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Damage")
+    float RiseSpeed = 50.0f;
+
+private:
+    float ElapsedTime = 0.0f;
 };

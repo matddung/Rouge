@@ -2,6 +2,8 @@
 
 
 #include "RogueCharacterActionComponent.h"
+#include "RogueCharacter.h"
+#include "RogueAnimInstance.h"
 
 // Sets default values for this component's properties
 URogueCharacterActionComponent::URogueCharacterActionComponent()
@@ -31,4 +33,3 @@ void URogueCharacterActionComponent::TickComponent(float DeltaTime, ELevelTick T
 
 	// ...
 }
-
