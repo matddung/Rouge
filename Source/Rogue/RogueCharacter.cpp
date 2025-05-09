@@ -363,6 +363,11 @@ void ARogueCharacter::DoDashAttackHit()
                 float DashDamage = CharacterStat->GetAttack() * 1.5;
                 FDamageEvent DamageEvent;
                 HitActor->TakeDamage(DashDamage, DamageEvent, GetController(), this);
+
+                if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitActor))
+                {
+                    SpawnDamageText(HitActor, DashDamage);
+                }
             }
         }
     }
@@ -433,6 +438,11 @@ void ARogueCharacter::DoJumpAttackHit()
         float Damage = CharacterStat->GetAttack() * 1.25;
         FDamageEvent DamageEvent;
         HitResult.GetActor()->TakeDamage(Damage, DamageEvent, GetController(), this);
+
+        if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitResult.GetActor()))
+        {
+            SpawnDamageText(HitResult.GetActor(), Damage);
+        }
     }
 }
 
@@ -514,6 +524,11 @@ void ARogueCharacter::DoSkillHit()
             float Damage = CharacterStat->GetAttack() * 5;
             FDamageEvent DamageEvent;
             HitActor->TakeDamage(Damage, DamageEvent, GetController(), this);
+
+            if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitActor))
+            {
+                SpawnDamageText(HitActor, Damage);
+            }
         }
     }
 
@@ -653,7 +668,10 @@ void ARogueCharacter::AttackCheck()
             FDamageEvent DamageEvent;
             HitResult.Actor->TakeDamage(CharacterStat->GetAttack(), DamageEvent, GetController(), this);
 
-            SpawnDamageText(HitResult.GetActor(), CharacterStat->GetAttack());
+            if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitResult.GetActor()))
+            {
+                SpawnDamageText(HitResult.GetActor(), CharacterStat->GetAttack());
+            }
         }
     }
 }

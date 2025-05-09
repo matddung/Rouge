@@ -13,7 +13,7 @@ AFloatingDamageActor::AFloatingDamageActor()
     WidgetComponent->SetDrawSize(FVector2D(150, 50));
     RootComponent = WidgetComponent;
 
-    static ConstructorHelpers::FClassFinder<UUserWidget> DamageTextWidgetClass(TEXT("/Game/UI/WBP_DamageText.WBP_DamageText_C"));
+    static ConstructorHelpers::FClassFinder<UUserWidget> DamageTextWidgetClass(TEXT("/Game/UI/WBP_DamageTexts.WBP_DamageTexts_C"));
     if (DamageTextWidgetClass.Succeeded())
     {
         WidgetComponent->SetWidgetClass(DamageTextWidgetClass.Class);
