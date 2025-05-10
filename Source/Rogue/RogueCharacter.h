@@ -1,10 +1,35 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "RogueCharacter.generated.h"
+
+UENUM(BlueprintType)
+enum class ECharacterActionState : uint8
+{
+	Idle,
+	Attacking,
+	Dodging,
+	Jumping,
+	Dead
+};
+
+UENUM(BlueprintType)
+enum class EAttackType : uint8
+{
+	None,
+	Combo,
+	Jump,
+	Dash,
+	Skill
+};
+
+UENUM()
+enum class EAttackCollisionType : uint8
+{
+	Sphere,
+	Capsule
+};
 
 UCLASS()
 class ROGUE_API ARogueCharacter : public ACharacter
@@ -12,25 +37,25 @@ class ROGUE_API ARogueCharacter : public ACharacter
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's propertiesS
 	ARogueCharacter();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 public:	
-	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	virtual void Landed(const FHitResult& Hit) override;
 	virtual void Jump() override;
 
-	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 private:
+	void UpdateMovementSpeed(float DeltaTime);
+	void HandleStaminaLogic(float DeltaTime);
+	void UpdateStatusWidget();
+
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 
@@ -44,22 +69,17 @@ private:
 	UFUNCTION()
 	void StopSprinting();
 
+
 	void Attack();
 	void DashAttack();
-	void DoDashAttackHit();
-
 	void JumpAttack();
-	void DoJumpAttackHit();
-
 	void UseSkill();
-	void DoSkillHit();
 
 	UFUNCTION()
 	void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	void AttackStartComboState();
 	void AttackEndComboState();
-	void AttackCheck();
 
 	void Dodge();
 	void HandleDodgeEffectStart();
@@ -67,7 +87,13 @@ private:
 
 	void SpawnDamageText(AActor* DamagedActor, float Damage);
 
+	void PerformAttackHit(EAttackType PerformAttackType);
+
 private:
+	ECharacterActionState ActionState = ECharacterActionState::Idle;
+
+	EAttackType AttackType = EAttackType::None;
+
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	class USpringArmComponent* SpringArm;
 
@@ -93,7 +119,7 @@ private:
 	float SpeedInterpRate = 4;
 
 	float TargetSpeed;
-	bool bWantsToSprint = false;	
+	bool bWantsToSprint = false;
 
 	UPROPERTY(VisibleAnywhere, Category = "Stat")
 	class URogueCharacterStatComponent* CharacterStat;
@@ -107,8 +133,8 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class AFloatingDamageActor> DamageTextActorClass;
 
-	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	bool IsAttacking = false;
+	/*UPROPERTY(VisibleInstanceOnly, Category = "Attack")
+	bool IsAttacking = false;*/
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
 	bool CanNextCombo;
@@ -120,7 +146,7 @@ private:
 	int32 CurrentCombo;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	int32 MaxCombo;
+	int32 MaxCombo = 4;
 
 	UPROPERTY()
 	class URogueAnimInstance* RogueAnim;
@@ -129,23 +155,20 @@ private:
 	UAnimMontage* DashAttackMontage;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	float AttackRange;
+	float AttackRange = 150;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	float AttackRadius;
-
-	bool bIsSprintKeyDown = false;
+	float AttackRadius = 50;
 
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	UAnimMontage* JumpAttackMontage;
 
-	bool bIsJumpAttacking = false;
-	bool bCanReceiveAttackInput = true;
+	//bool bIsJumpAttacking = false;
 
 	UPROPERTY(EditAnywhere, Category = "Skill")
 	UAnimMontage* SkillMontage;
 
-	bool bIsSkillInvincible = false;
+	//bool bIsSkillInvincible = false;
 
 	UPROPERTY(EditAnywhere, Category = "Skill")
 	UParticleSystem* SkillEffect;
@@ -156,7 +179,7 @@ private:
 	float SkillCooldownTime = 30;
 	float LastSkillTime = -SkillCooldownTime;
 
-	bool bIsDodging = false;
+	//bool bIsDodging = false;
 	bool bIsDodgeInvincible = false;
 	FVector DodgeDirection;
 

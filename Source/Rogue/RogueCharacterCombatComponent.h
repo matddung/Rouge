@@ -4,17 +4,17 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "RogueCharacterActionComponent.generated.h"
+#include "RogueCharacterCombatComponent.generated.h"
 
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class ROGUE_API URogueCharacterActionComponent : public UActorComponent
+class ROGUE_API URogueCharacterCombatComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:	
 	// Sets default values for this component's properties
-	URogueCharacterActionComponent();
+	URogueCharacterCombatComponent();
 
 protected:
 	// Called when the game starts
@@ -24,8 +24,5 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-public:
-
-private:
-	
+		
 };
