@@ -8,6 +8,8 @@ UENUM(BlueprintType)
 enum class ECharacterActionState : uint8
 {
 	Idle,
+	Walking,
+	Running,
 	Attacking,
 	Dodging,
 	Jumping,
@@ -54,6 +56,7 @@ public:
 private:
 	void UpdateMovementSpeed(float DeltaTime);
 	void HandleStaminaLogic(float DeltaTime);
+	void UpdateMovementState();
 	void UpdateStatusWidget();
 
 	void MoveForward(float Value);
@@ -68,7 +71,6 @@ private:
 
 	UFUNCTION()
 	void StopSprinting();
-
 
 	void Attack();
 	void DashAttack();
@@ -133,9 +135,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class AFloatingDamageActor> DamageTextActorClass;
 
-	/*UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	bool IsAttacking = false;*/
-
 	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
 	bool CanNextCombo;
 
@@ -163,14 +162,10 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	UAnimMontage* JumpAttackMontage;
 
-	//bool bIsJumpAttacking = false;
-
-	UPROPERTY(EditAnywhere, Category = "Skill")
+	UPROPERTY(EditAnywhere, Category = "Attack")
 	UAnimMontage* SkillMontage;
 
-	//bool bIsSkillInvincible = false;
-
-	UPROPERTY(EditAnywhere, Category = "Skill")
+	UPROPERTY(EditAnywhere, Category = "Attack")
 	UParticleSystem* SkillEffect;
 
 	UPROPERTY()
@@ -179,7 +174,6 @@ private:
 	float SkillCooldownTime = 30;
 	float LastSkillTime = -SkillCooldownTime;
 
-	//bool bIsDodging = false;
 	bool bIsDodgeInvincible = false;
 	FVector DodgeDirection;
 

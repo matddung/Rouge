@@ -73,6 +73,7 @@ void ARogueCharacter::Tick(float DeltaTime)
 
     UpdateMovementSpeed(DeltaTime);
     HandleStaminaLogic(DeltaTime);
+    UpdateMovementState();
     UpdateStatusWidget();
 
     UE_LOG(LogTemp, Warning, TEXT("ActionState: %s, AttackType: %s"),
@@ -102,7 +103,6 @@ void ARogueCharacter::PostInitializeComponents()
         {
             if (!CharacterStat->ConsumeStamina(AttackCost))
             {
-                UE_LOG(LogTemp, Warning, TEXT("Not enough stamina for combo"));
                 return;
             }
 
@@ -145,7 +145,6 @@ float ARogueCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const&
 {
     if (AttackType == EAttackType::Skill || bIsDodgeInvincible)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Invincible No damage taken"));
         return 0;
     }
 
@@ -193,23 +192,54 @@ void ARogueCharacter::UpdateMovementSpeed(float DeltaTime)
 
 void ARogueCharacter::HandleStaminaLogic(float DeltaTime)
 {
-    if (CharacterStat)
-    {
-        if (!bWantsToSprint && ActionState == ECharacterActionState::Idle)
-        {
-            CharacterStat->RecoverStamina(DeltaTime);
-        }
+    const float MovementSpeed = GetVelocity().Size();
 
-        if (bWantsToSprint && !CharacterStat->ConsumeStamina(SprintStaminaCostPerSec * DeltaTime))
+    if ((ActionState == ECharacterActionState::Idle || ActionState == ECharacterActionState::Walking) && !GetCharacterMovement()->IsFalling())
+    {
+        CharacterStat->RecoverStamina(DeltaTime);
+    }
+
+    const float SprintSpeedThreshold = RunSpeed * 0.7f;
+
+    if (bWantsToSprint && ActionState == ECharacterActionState::Running)
+    {
+        if (!CharacterStat->ConsumeStamina(SprintStaminaCostPerSec * DeltaTime))
         {
             StopSprinting();
         }
     }
 }
 
+void ARogueCharacter::UpdateMovementState()
+{
+    if (ActionState == ECharacterActionState::Jumping || ActionState == ECharacterActionState::Attacking ||
+        ActionState == ECharacterActionState::Dodging || ActionState == ECharacterActionState::Dead)
+    {
+        return;
+    }
+
+    float Speed = GetVelocity().Size();
+
+    const float WalkThreshold = WalkSpeed * 0.5f;
+    const float RunThreshold = RunSpeed * 0.7f;
+
+    if (Speed < 5.0f || GetCharacterMovement()->IsFalling())
+    {
+        ActionState = ECharacterActionState::Idle;
+    }
+    else if (Speed < RunThreshold)
+    {
+        ActionState = ECharacterActionState::Walking;
+    }
+    else
+    {
+        ActionState = ECharacterActionState::Running;
+    }
+}
+
 void ARogueCharacter::UpdateStatusWidget()
 {
-    if (!StatusWidget || !CharacterStat) return;
+    if (!StatusWidget) return;
 
     StatusWidget->UpdateHP(CharacterStat->GetCurrentHP(), CharacterStat->GetMaxHP());
     StatusWidget->UpdateStamina(CharacterStat->GetCurrentStamina(), CharacterStat->GetMaxStamina());
@@ -281,20 +311,21 @@ void ARogueCharacter::Landed(const FHitResult& Hit)
     ActionState = ECharacterActionState::Idle;
     AttackType = EAttackType::None;
 }
-
+    
 void ARogueCharacter::Jump()
 {
-    if (!CharacterStat->ConsumeStamina(JumpStaminaCost))
+    if (ActionState != ECharacterActionState::Idle)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to jump"));
         return;
     }
 
-    if (ActionState != ECharacterActionState::Idle)
+    if (!CharacterStat->ConsumeStamina(JumpStaminaCost))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot jump while attacking"));
         return;
     }
+
+    ActionState = ECharacterActionState::Jumping;
+    AttackType = EAttackType::None;
 
     Super::Jump();
 }
@@ -439,9 +470,13 @@ void ARogueCharacter::PerformAttackHit(EAttackType PerformAttackType)
 
 void ARogueCharacter::Attack()
 {
-    if (ActionState == ECharacterActionState::Jumping || ActionState == ECharacterActionState::Dodging)
+    if (ActionState == ECharacterActionState::Attacking && AttackType != EAttackType::Combo)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot attack during dodge or while hidden"));
+        return;
+    }
+
+    if (ActionState == ECharacterActionState::Dodging || AttackType == EAttackType::Skill)
+    {
         return;
     }
 
@@ -482,7 +517,6 @@ void ARogueCharacter::Attack()
 
     if (!CharacterStat->ConsumeStamina(AttackCost))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to attack"));
         return;
     }
 
@@ -497,7 +531,6 @@ void ARogueCharacter::DashAttack()
 {
     if (!CharacterStat->ConsumeStamina(AttackCost))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina for dash attack"));
         return;
     }
 
@@ -510,7 +543,6 @@ void ARogueCharacter::DashAttack()
     if (DashAttackMontage && RogueAnim)
     {
         RogueAnim->Montage_Play(DashAttackMontage);
-        LaunchCharacter(Forward * 1000, true, true);
     }
 }
 
@@ -528,7 +560,6 @@ void ARogueCharacter::JumpAttack()
 
     if (!CharacterStat->ConsumeStamina(AttackCost))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to jump attack"));
         return;
     }
 
@@ -543,25 +574,23 @@ void ARogueCharacter::UseSkill()
     if (CurrentTime - LastSkillTime < SkillCooldownTime)
     {
         float RemainingTime = SkillCooldownTime - (CurrentTime - LastSkillTime);
-        UE_LOG(LogTemp, Warning, TEXT("Skill is on cooldown: %.1f seconds left"), RemainingTime);
         return;
     }
 
-    if (ActionState != ECharacterActionState::Idle)
+    if (ActionState != ECharacterActionState::Idle &&
+        ActionState != ECharacterActionState::Walking &&
+        ActionState != ECharacterActionState::Running)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot use skill now"));
         return;
     }
 
     if (!SkillMontage || !RogueAnim)
     {
-        UE_LOG(LogTemp, Warning, TEXT("SkillMontage or AnimInstance missing"));
         return;
     }
 
     if (!CharacterStat->ConsumeStamina(SkillStaminaCost))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to use skill"));
         return;
     }
 
@@ -625,11 +654,15 @@ void ARogueCharacter::AttackEndComboState()
 
 void ARogueCharacter::Dodge()
 {
-    if (ActionState != ECharacterActionState::Idle || AttackType == EAttackType::Skill || RogueAnim->IsInAir) return;
+    if (ActionState != ECharacterActionState::Idle &&
+        ActionState != ECharacterActionState::Walking &&
+        ActionState != ECharacterActionState::Running)
+    {
+        return;
+    }
 
     if (!CharacterStat->ConsumeStamina(DodgeStaminaCost))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough stamina to dodge"));
         return;
     }
 
@@ -664,11 +697,6 @@ void ARogueCharacter::HandleDodgeEffectStart()
         FVector NewLocation = GetActorLocation() + DodgeDirection * DodgeDistance;
         FHitResult HitResult;
         bool bMoved = SetActorLocation(NewLocation, true, &HitResult, ETeleportType::TeleportPhysics);
-
-        if (!bMoved)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Dodge blocked"));
-        }
 
         bDidDodgeTeleport = true;
     }
