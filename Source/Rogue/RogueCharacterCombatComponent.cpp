@@ -86,15 +86,15 @@ void URogueCharacterCombatComponent::Attack()
     }
 
     float CurrentSpeed = Character->GetVelocity().Size();
-    if (Character->bWantsToSprint && CurrentSpeed >= Character->RunSpeed - 30 && !RogueAnim->IsInAir)
+    if (Character->bWantsToSprint && CurrentSpeed >= Character->GetRunSpeed() - 30 && !RogueAnim->IsInAir)
     {
         DashAttack();
         return;
     }
 
-    Character->TargetSpeed = Character->WalkSpeed;
+    Character->TargetSpeed = Character->GetWalkSpeed();
 
-    if (!CharacterStat || !CharacterStat->ConsumeStamina(Character->AttackCost))
+    if (!CharacterStat || !CharacterStat->ConsumeStamina(AttackCost))
     {
         return;
     }
@@ -108,12 +108,12 @@ void URogueCharacterCombatComponent::Attack()
 
 void URogueCharacterCombatComponent::DashAttack()
 {
-    if (!CharacterStat || !CharacterStat->ConsumeStamina(Character->AttackCost))
+    if (!CharacterStat || !CharacterStat->ConsumeStamina(AttackCost))
     {
         return;
     }
 
-    Character->TargetSpeed = Character->WalkSpeed;
+    Character->TargetSpeed = Character->GetWalkSpeed();
     Character->SetActionState(ECharacterActionState::Attacking);
     AttackType = EAttackType::Dash;
 
@@ -137,7 +137,7 @@ void URogueCharacterCombatComponent::JumpAttack()
         return;
     }
 
-    if (!CharacterStat || !CharacterStat->ConsumeStamina(Character->AttackCost))
+    if (!CharacterStat || !CharacterStat->ConsumeStamina(AttackCost))
     {
         return;
     }
@@ -168,7 +168,7 @@ void URogueCharacterCombatComponent::UseSkill()
         return;
     }
 
-    if (!CharacterStat || !CharacterStat->ConsumeStamina(Character->SkillStaminaCost))
+    if (!CharacterStat || !CharacterStat->ConsumeStamina(SkillStaminaCost))
     {
         return;
     }
@@ -202,7 +202,7 @@ void URogueCharacterCombatComponent::OnAttackMontageEnded(UAnimMontage* Montage,
 
         if (Character->bWantsToSprint)
         {
-            Character->TargetSpeed = Character->RunSpeed;
+            Character->TargetSpeed = Character->GetRunSpeed();
         }
         return;
     }
@@ -213,7 +213,7 @@ void URogueCharacterCombatComponent::OnAttackMontageEnded(UAnimMontage* Montage,
 
     if (Character->bWantsToSprint)
     {
-        Character->TargetSpeed = Character->RunSpeed;
+        Character->TargetSpeed = Character->GetRunSpeed();
     }
 }
 
@@ -368,7 +368,7 @@ void URogueCharacterCombatComponent::InitializeWithAnim(URogueAnimInstance* Anim
 
         if (IsComboInputOn)
         {
-            if (!CharacterStat || !CharacterStat->ConsumeStamina(Character->AttackCost))
+            if (!CharacterStat || !CharacterStat->ConsumeStamina(AttackCost))
                 return;
 
             AttackStartComboState();

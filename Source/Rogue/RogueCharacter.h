@@ -39,6 +39,9 @@ public:
 	ECharacterActionState GetActionState() { return ActionState; };
 	void SetActionState(ECharacterActionState NewState) { ActionState = NewState; }
 
+	float GetWalkSpeed() { return WalkSpeed; };
+	float GetRunSpeed() { return RunSpeed; };
+
 	void SpawnDamageText(AActor* DamagedActor, float Damage);
 
 private:
@@ -64,20 +67,12 @@ private:
 	void InputDodge();
 
 public:
-	UPROPERTY(EditAnywhere, Category = "Movement")
-	float WalkSpeed = 160;
-
-	UPROPERTY(EditAnywhere, Category = "Movement")
-	float RunSpeed = 600;
-
 	float TargetSpeed;
 	bool bWantsToSprint = false;
 
-	float DodgeStaminaCost = 15;
 	float SprintStaminaCostPerSec = 5;
-	float AttackCost = 10;
 	float JumpStaminaCost = 5;
-	float SkillStaminaCost = 50;
+	
 
 private:
 	ECharacterActionState ActionState = ECharacterActionState::Idle;
@@ -98,6 +93,12 @@ private:
 	float ZoomStep = 100;
 
 	UPROPERTY(EditAnywhere, Category = "Movement")
+	float WalkSpeed = 160;
+
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float RunSpeed = 600;
+
+	UPROPERTY(EditAnywhere, Category = "Movement")
 	float SpeedInterpRate = 4;
 
 	UPROPERTY(VisibleAnywhere, Category = "Stat")
@@ -109,11 +110,11 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Dodge")
 	class URogueCharacterDodgeComponent* DodgeComponent;
 
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<UUserWidget> StatusWidgetClass;
-
 	UPROPERTY()
 	class URogueUserWidget* StatusWidget;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> StatusWidgetClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class AFloatingDamageActor> DamageTextActorClass;

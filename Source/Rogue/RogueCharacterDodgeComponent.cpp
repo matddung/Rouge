@@ -56,7 +56,7 @@ void URogueCharacterDodgeComponent::Dodge()
         return;
     }
 
-    if (!CharacterStat->ConsumeStamina(Character->DodgeStaminaCost))
+    if (!CharacterStat->ConsumeStamina(DodgeStaminaCost))
     {
         return;
     }

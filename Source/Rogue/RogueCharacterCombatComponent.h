@@ -104,4 +104,7 @@ private:
 	
 	UPROPERTY()
 	class URogueCharacterDodgeComponent* DodgeComponent;
+
+	float AttackCost = 10;
+	float SkillStaminaCost = 50;
 };

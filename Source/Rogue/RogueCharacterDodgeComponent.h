@@ -56,4 +56,6 @@ private:
 	UParticleSystem* DodgeEffect;
 
 	bool bDidDodgeTeleport = false;
+
+	float DodgeStaminaCost = 15;
 };
