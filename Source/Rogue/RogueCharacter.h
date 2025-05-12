@@ -16,23 +16,6 @@ enum class ECharacterActionState : uint8
 	Dead
 };
 
-UENUM(BlueprintType)
-enum class EAttackType : uint8
-{
-	None,
-	Combo,
-	Jump,
-	Dash,
-	Skill
-};
-
-UENUM()
-enum class EAttackCollisionType : uint8
-{
-	Sphere,
-	Capsule
-};
-
 UCLASS()
 class ROGUE_API ARogueCharacter : public ACharacter
 {
@@ -53,6 +36,11 @@ public:
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	ECharacterActionState GetActionState() { return ActionState; };
+	void SetActionState(ECharacterActionState NewState) { ActionState = NewState; }
+
+	void SpawnDamageText(AActor* DamagedActor, float Damage);
+
 private:
 	void UpdateMovementSpeed(float DeltaTime);
 	void HandleStaminaLogic(float DeltaTime);
@@ -63,7 +51,6 @@ private:
 	void MoveRight(float Value);
 
 	void ZoomInCamera();
-
 	void ZoomOutCamera();
 
 	UFUNCTION()
@@ -72,29 +59,28 @@ private:
 	UFUNCTION()
 	void StopSprinting();
 
-	void Attack();
-	void DashAttack();
-	void JumpAttack();
-	void UseSkill();
+	void InputAttack();
+	void InputUseSkill();
+	void InputDodge();
 
-	UFUNCTION()
-	void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+public:
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float WalkSpeed = 160;
 
-	void AttackStartComboState();
-	void AttackEndComboState();
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float RunSpeed = 600;
 
-	void Dodge();
-	void HandleDodgeEffectStart();
-	void HandleDodgeEffectEnd();
+	float TargetSpeed;
+	bool bWantsToSprint = false;
 
-	void SpawnDamageText(AActor* DamagedActor, float Damage);
-
-	void PerformAttackHit(EAttackType PerformAttackType);
+	float DodgeStaminaCost = 15;
+	float SprintStaminaCostPerSec = 5;
+	float AttackCost = 10;
+	float JumpStaminaCost = 5;
+	float SkillStaminaCost = 50;
 
 private:
 	ECharacterActionState ActionState = ECharacterActionState::Idle;
-
-	EAttackType AttackType = EAttackType::None;
 
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	class USpringArmComponent* SpringArm;
@@ -112,19 +98,16 @@ private:
 	float ZoomStep = 100;
 
 	UPROPERTY(EditAnywhere, Category = "Movement")
-	float WalkSpeed = 160;
-
-	UPROPERTY(EditAnywhere, Category = "Movement")
-	float RunSpeed = 600;
-
-	UPROPERTY(EditAnywhere, Category = "Movement")
 	float SpeedInterpRate = 4;
-
-	float TargetSpeed;
-	bool bWantsToSprint = false;
 
 	UPROPERTY(VisibleAnywhere, Category = "Stat")
 	class URogueCharacterStatComponent* CharacterStat;
+
+	UPROPERTY(VisibleAnywhere, Category = "Combat")
+	class URogueCharacterCombatComponent* CombatComponent;
+
+	UPROPERTY(VisibleAnywhere, Category = "Dodge")
+	class URogueCharacterDodgeComponent* DodgeComponent;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> StatusWidgetClass;
@@ -135,64 +118,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class AFloatingDamageActor> DamageTextActorClass;
 
-	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	bool CanNextCombo;
-
-	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	bool IsComboInputOn;
-
-	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	int32 CurrentCombo;
-
-	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	int32 MaxCombo = 4;
-
 	UPROPERTY()
 	class URogueAnimInstance* RogueAnim;
-
-	UPROPERTY(EditAnywhere, Category = "Attack")
-	UAnimMontage* DashAttackMontage;
-
-	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	float AttackRange = 150;
-
-	UPROPERTY(VisibleInstanceOnly, Category = "Attack")
-	float AttackRadius = 50;
-
-	UPROPERTY(EditAnywhere, Category = "Attack")
-	UAnimMontage* JumpAttackMontage;
-
-	UPROPERTY(EditAnywhere, Category = "Attack")
-	UAnimMontage* SkillMontage;
-
-	UPROPERTY(EditAnywhere, Category = "Attack")
-	UParticleSystem* SkillEffect;
-
-	UPROPERTY()
-	UParticleSystemComponent* SkillEffectComponent = nullptr;
-
-	float SkillCooldownTime = 30;
-	float LastSkillTime = -SkillCooldownTime;
-
-	bool bIsDodgeInvincible = false;
-	FVector DodgeDirection;
-
-	UPROPERTY(EditAnywhere)
-	float DodgeDistance = 300;
-
-	UPROPERTY(EditAnywhere, Category = "Dodge")
-	UAnimMontage* DodgeMontage;
-
-	FTimerHandle DodgeTimerHandle;
-
-	UPROPERTY(EditAnywhere, Category = "Dodge")
-	UParticleSystem* DodgeEffect;
-
-	bool bDidDodgeTeleport = false;
-
-	float DodgeStaminaCost = 15;
-	float SprintStaminaCostPerSec = 5;
-	float AttackCost = 10;
-	float JumpStaminaCost = 5;
-	float SkillStaminaCost = 50;
 };

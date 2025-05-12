@@ -3,16 +3,16 @@
 #include "RogueCharacterStatComponent.h"
 #include "RogueUserWidget.h"
 #include "FloatingDamageActor.h"
+#include "RogueCharacterCombatComponent.h"
+#include "RogueCharacterDodgeComponent.h"
 
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
 #include "GameFramework/DamageType.h"
 #include "Components/CapsuleComponent.h"
-#include "DrawDebugHelpers.h"
-#include "Particles/ParticleSystemComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 ARogueCharacter::ARogueCharacter()
 {
@@ -44,11 +44,13 @@ ARogueCharacter::ARogueCharacter()
         GetMesh()->SetAnimInstanceClass(AttackAnim.Class);
     }
 
-    AttackEndComboState();
-
     GetCapsuleComponent()->SetCollisionProfileName(TEXT("RogueCharacter"));
 
     CharacterStat = CreateDefaultSubobject<URogueCharacterStatComponent>(TEXT("CharacterStat"));
+    CombatComponent = CreateDefaultSubobject<URogueCharacterCombatComponent>(TEXT("CombatComponent"));
+    DodgeComponent = CreateDefaultSubobject<URogueCharacterDodgeComponent>(TEXT("DodgeComponent"));
+
+    CombatComponent->AttackEndComboState();
 }
 
 void ARogueCharacter::BeginPlay()
@@ -76,9 +78,7 @@ void ARogueCharacter::Tick(float DeltaTime)
     UpdateMovementState();
     UpdateStatusWidget();
 
-    UE_LOG(LogTemp, Warning, TEXT("ActionState: %s, AttackType: %s"),
-        *UEnum::GetValueAsString(ActionState),
-        *UEnum::GetValueAsString(AttackType));
+    UE_LOG(LogTemp, Warning, TEXT("ActionState: %s"), *UEnum::GetValueAsString(ActionState));
 }
 
 void ARogueCharacter::PostInitializeComponents()
@@ -91,49 +91,8 @@ void ARogueCharacter::PostInitializeComponents()
         return;
     }
 
-    RogueAnim->OnMontageEnded.AddDynamic(this, &ARogueCharacter::OnAttackMontageEnded);
-
-    RogueAnim->OnNextAttackCheck.AddLambda([this]() -> void {
-        if (ActionState != ECharacterActionState::Attacking || AttackType != EAttackType::Combo)
-        {
-            return;
-        }
-
-        if (IsComboInputOn)
-        {
-            if (!CharacterStat->ConsumeStamina(AttackCost))
-            {
-                return;
-            }
-
-            AttackStartComboState();
-            RogueAnim->JumpToAttackMontageSection(CurrentCombo);
-        }
-    });
-
-    RogueAnim->OnAttackHitCheck.AddLambda([this]() {
-        PerformAttackHit(EAttackType::Combo);
-    });
-
-    RogueAnim->OnDashAttackHitCheck.AddLambda([this]() -> void {
-        PerformAttackHit(EAttackType::Dash);
-    });
-
-    RogueAnim->OnJumpAttackHitCheck.AddLambda([this]() {
-        PerformAttackHit(EAttackType::Jump);
-    });
-
-    RogueAnim->OnSkillHitCheck.AddLambda([this]() {
-        PerformAttackHit(EAttackType::Skill);
-    });
-
-    RogueAnim->OnDodgeEffectStart.AddLambda([this]() {
-        HandleDodgeEffectStart();
-    });
-
-    RogueAnim->OnDodgeEffectEnd.AddLambda([this]() {
-        HandleDodgeEffectEnd();
-    });
+    CombatComponent->InitializeWithAnim(RogueAnim);
+    DodgeComponent->InitializeWithAnim(RogueAnim);
 
     CharacterStat->OnHPIsZero.AddLambda([this]() -> void {
         SetActorEnableCollision(false);
@@ -143,7 +102,7 @@ void ARogueCharacter::PostInitializeComponents()
 
 float ARogueCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
 {
-    if (AttackType == EAttackType::Skill || bIsDodgeInvincible)
+    if (CombatComponent->GetAttackType() == EAttackType::Skill || DodgeComponent->bIsDodgeInvincible)
     {
         return 0;
     }
@@ -171,11 +130,11 @@ void ARogueCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &ARogueCharacter::StartSprinting);
     PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ARogueCharacter::StopSprinting);
     PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ARogueCharacter::Jump);
-    PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &ARogueCharacter::Attack);
-    PlayerInputComponent->BindAction("UseSkill", IE_Pressed, this, &ARogueCharacter::UseSkill);
+    PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &ARogueCharacter::InputAttack);
+    PlayerInputComponent->BindAction("UseSkill", IE_Pressed, this, &ARogueCharacter::InputUseSkill);
     PlayerInputComponent->BindAction("ZoomInCamera", IE_Pressed, this, &ARogueCharacter::ZoomInCamera);
     PlayerInputComponent->BindAction("ZoomOutCamera", IE_Pressed, this, &ARogueCharacter::ZoomOutCamera);
-    PlayerInputComponent->BindAction("Dodge", IE_Pressed, this, &ARogueCharacter::Dodge);
+    PlayerInputComponent->BindAction("Dodge", IE_Pressed, this, &ARogueCharacter::InputDodge);
 
     PlayerInputComponent->BindAxis("MoveForward", this, &ARogueCharacter::MoveForward);
     PlayerInputComponent->BindAxis("MoveRight", this, &ARogueCharacter::MoveRight);
@@ -246,13 +205,13 @@ void ARogueCharacter::UpdateStatusWidget()
     StatusWidget->UpdateLevel(CharacterStat->GetLevel());
     StatusWidget->UpdateExpBar(CharacterStat->GetCurrentExp(), CharacterStat->GetNextExp());
 
-    float RemainingCooldown = FMath::Max(0.0f, SkillCooldownTime - (GetWorld()->GetTimeSeconds() - LastSkillTime));
-    StatusWidget->UpdateSkillCooldown(RemainingCooldown, SkillCooldownTime);
+    float RemainingCooldown = FMath::Max(0.0f, CombatComponent->SkillCooldownTime - (GetWorld()->GetTimeSeconds() - CombatComponent->LastSkillTime));
+    StatusWidget->UpdateSkillCooldown(RemainingCooldown, CombatComponent->SkillCooldownTime);
 }
 
 void ARogueCharacter::MoveForward(float Value)
 {
-    if (AttackType == EAttackType::Skill || Controller == nullptr || Value == 0.0f)
+    if (CombatComponent->GetAttackType()  == EAttackType::Skill || Controller == nullptr || Value == 0.0f)
     {
         return;
     }
@@ -265,7 +224,7 @@ void ARogueCharacter::MoveForward(float Value)
 
 void ARogueCharacter::MoveRight(float Value)
 {
-    if (AttackType == EAttackType::Skill || Controller == nullptr || Value == 0.0f)
+    if (CombatComponent->GetAttackType() == EAttackType::Skill || Controller == nullptr || Value == 0.0f)
     {
         return;
     }
@@ -309,12 +268,12 @@ void ARogueCharacter::Landed(const FHitResult& Hit)
     Super::Landed(Hit);
 
     ActionState = ECharacterActionState::Idle;
-    AttackType = EAttackType::None;
+    CombatComponent->SetAttackType(EAttackType::None);
 }
     
 void ARogueCharacter::Jump()
 {
-    if (ActionState != ECharacterActionState::Idle)
+    if (ActionState == ECharacterActionState::Jumping || ActionState == ECharacterActionState::Dodging || ActionState == ECharacterActionState::Attacking || ActionState == ECharacterActionState::Dead)
     {
         return;
     }
@@ -325,7 +284,7 @@ void ARogueCharacter::Jump()
     }
 
     ActionState = ECharacterActionState::Jumping;
-    AttackType = EAttackType::None;
+    CombatComponent->SetAttackType(EAttackType::None);
 
     Super::Jump();
 }
@@ -345,365 +304,26 @@ void ARogueCharacter::SpawnDamageText(AActor* DamagedActor, float Damage)
     }
 }
 
-void ARogueCharacter::PerformAttackHit(EAttackType PerformAttackType)
+void ARogueCharacter::InputAttack()
 {
-    EAttackCollisionType ShapeType;
-    float Radius = 0;
-    float HalfHeight = 0;
-    float Distance = 0;
-    float DamageMultiplier = 1;
-    FVector Direction = GetActorForwardVector();
-
-    switch (PerformAttackType)
+    if (CombatComponent)
     {
-    case EAttackType::Combo:
-        ShapeType = EAttackCollisionType::Capsule;
-        Radius = AttackRadius;
-        HalfHeight = AttackRange * 0.5;
-        Distance = AttackRange;
-        DamageMultiplier = 1;
-        break;
-
-    case EAttackType::Dash:
-        ShapeType = EAttackCollisionType::Sphere;
-        Radius = 150;
-        DamageMultiplier = 1.5;
-        Direction = FVector::ZeroVector;
-        break;
-
-    case EAttackType::Jump:
-        ShapeType = EAttackCollisionType::Capsule;
-        Radius = 60;
-        HalfHeight = 100;
-        Distance = 200;
-        Direction = (GetActorForwardVector() + FVector(0, 0, -1)).GetSafeNormal();
-        DamageMultiplier = 1.25;
-        break;
-
-    case EAttackType::Skill:
-        if (SkillEffect)
-        {
-            SkillEffectComponent = UGameplayStatics::SpawnEmitterAttached(
-                SkillEffect,
-                GetRootComponent(),
-                NAME_None,
-                FVector::ZeroVector,
-                FRotator::ZeroRotator,
-                EAttachLocation::KeepRelativeOffset,
-                true
-            );
-
-            if (SkillEffectComponent)
-            {
-                SkillEffectComponent->SetWorldScale3D(FVector(2.5));
-            }
-        }
-
-        ShapeType = EAttackCollisionType::Sphere;
-        Radius = 550;
-        DamageMultiplier = 5;
-        Direction = FVector::ZeroVector;
-        break;
-
-    default:
-        return;
-    }
-
-    FVector Start = GetActorLocation() + FVector(0, 0, 50);
-    FVector End = Start + Direction * Distance;
-
-    TArray<FOverlapResult> Overlaps;
-    FCollisionQueryParams Params(NAME_None, false, this);
-    Params.AddIgnoredActor(this);
-
-    bool bHit = false;
-
-    if (ShapeType == EAttackCollisionType::Sphere)
-    {
-        FCollisionShape Shape = FCollisionShape::MakeSphere(Radius);
-        bHit = GetWorld()->OverlapMultiByChannel(Overlaps, End, FQuat::Identity, ECC_Pawn, Shape, Params);
-
-#if WITH_EDITOR
-        FVector DrawCenter = GetActorLocation() + FVector(0, 0, 50);
-        DrawDebugSphere(GetWorld(), DrawCenter, Radius, 24, FColor::Red, false, 1);
-#endif
-    }
-    else if (ShapeType == EAttackCollisionType::Capsule)
-    {
-        FCollisionShape Shape = FCollisionShape::MakeCapsule(Radius, HalfHeight);
-        bHit = GetWorld()->OverlapMultiByChannel(Overlaps, End, FQuat::Identity, ECC_Pawn, Shape, Params);
-
-#if WITH_EDITOR
-        FVector TraceVec = Direction * Distance;
-        FVector Center = GetActorLocation() + TraceVec * 0.5f + FVector(0, 0, 50);
-        float DebugHalfHeight = HalfHeight + Radius;
-
-        FQuat CapsuleRot = FRotationMatrix::MakeFromZ(TraceVec).ToQuat();
-
-        DrawDebugCapsule(GetWorld(),
-            Center,
-            DebugHalfHeight,
-            Radius,
-            CapsuleRot,
-            FColor::Red,
-            false,
-            1);
-#endif
-    }
-
-    for (const auto& Result : Overlaps)
-    {
-        AActor* HitActor = Result.GetActor();
-        if (HitActor && HitActor != this)
-        {
-            float Damage = CharacterStat->GetAttack() * DamageMultiplier;
-            FDamageEvent DamageEvent;
-            HitActor->TakeDamage(Damage, DamageEvent, GetController(), this);
-
-            if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitActor))
-            {
-                SpawnDamageText(HitActor, Damage);
-            }
-        }
+        CombatComponent->Attack();
     }
 }
 
-void ARogueCharacter::Attack()
+void ARogueCharacter::InputUseSkill()
 {
-    if (ActionState == ECharacterActionState::Attacking && AttackType != EAttackType::Combo)
+    if (CombatComponent)
     {
-        return;
-    }
-
-    if (ActionState == ECharacterActionState::Dodging || AttackType == EAttackType::Skill)
-    {
-        return;
-    }
-
-    if (ActionState == ECharacterActionState::Attacking && AttackType == EAttackType::Combo)
-    {
-        if (!ensureMsgf((FMath::IsWithinInclusive<int32>(CurrentCombo, 1, MaxCombo)), TEXT("Attack IsAttacking true")))
-        {
-            return;
-        }
-
-        if (CanNextCombo)
-        {
-            IsComboInputOn = true;
-        }
-
-        return;
-    }
-
-    if (!ensureMsgf(CurrentCombo == 0, TEXT("Attack IsAttacking false")))
-    {
-        return;
-    }
-
-    if (RogueAnim->IsInAir)
-    {
-        JumpAttack();
-        return;
-    }
-
-    float CurrentSpeed = GetVelocity().Size();
-    if (bWantsToSprint && CurrentSpeed >= RunSpeed - 30 && !RogueAnim->IsInAir)
-    {
-        DashAttack();
-        return;
-    }
-
-    TargetSpeed = WalkSpeed;
-
-    if (!CharacterStat->ConsumeStamina(AttackCost))
-    {
-        return;
-    }
-
-    AttackStartComboState();
-    RogueAnim->PlayAttackMontage();
-    RogueAnim->JumpToAttackMontageSection(CurrentCombo);
-    ActionState = ECharacterActionState::Attacking;
-    AttackType = EAttackType::Combo;
-}
-
-void ARogueCharacter::DashAttack()
-{
-    if (!CharacterStat->ConsumeStamina(AttackCost))
-    {
-        return;
-    }
-
-    TargetSpeed = WalkSpeed;
-    ActionState = ECharacterActionState::Attacking;
-    AttackType = EAttackType::Dash;
-
-    FVector Forward = GetActorForwardVector();
-
-    if (DashAttackMontage && RogueAnim)
-    {
-        RogueAnim->Montage_Play(DashAttackMontage);
+        CombatComponent->UseSkill();
     }
 }
 
-void ARogueCharacter::JumpAttack()
+void ARogueCharacter::InputDodge()
 {
-    if (!JumpAttackMontage || !RogueAnim)
+    if (DodgeComponent)
     {
-        return;
+        DodgeComponent->Dodge();
     }
-
-    if (ActionState == ECharacterActionState::Attacking)
-    {
-        return;
-    }
-
-    if (!CharacterStat->ConsumeStamina(AttackCost))
-    {
-        return;
-    }
-
-    ActionState = ECharacterActionState::Attacking;
-    AttackType = EAttackType::Jump;
-    RogueAnim->Montage_Play(JumpAttackMontage);
-}
-
-void ARogueCharacter::UseSkill()
-{
-    float CurrentTime = GetWorld()->GetTimeSeconds();
-    if (CurrentTime - LastSkillTime < SkillCooldownTime)
-    {
-        float RemainingTime = SkillCooldownTime - (CurrentTime - LastSkillTime);
-        return;
-    }
-
-    if (ActionState != ECharacterActionState::Idle &&
-        ActionState != ECharacterActionState::Walking &&
-        ActionState != ECharacterActionState::Running)
-    {
-        return;
-    }
-
-    if (!SkillMontage || !RogueAnim)
-    {
-        return;
-    }
-
-    if (!CharacterStat->ConsumeStamina(SkillStaminaCost))
-    {
-        return;
-    }
-
-    LastSkillTime = CurrentTime;
-
-    ActionState = ECharacterActionState::Attacking;
-    AttackType = EAttackType::Skill;
-
-    RogueAnim->Montage_Play(SkillMontage);
-}
-
-void ARogueCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
-{
-    ActionState = ECharacterActionState::Idle;
-    AttackType = EAttackType::None;
-
-    if (Montage == DodgeMontage)
-    {
-        bIsDodgeInvincible = false;
-        return;
-    }
-
-    if (Montage == DashAttackMontage || Montage == JumpAttackMontage || Montage == SkillMontage)
-    {
-        if (SkillEffectComponent)
-        {
-            SkillEffectComponent->DeactivateSystem();
-            SkillEffectComponent = nullptr;
-        }
-
-        if (bWantsToSprint)
-        {
-            TargetSpeed = RunSpeed;
-        }
-        return;
-    }
-
-    if (!ensureMsgf(CurrentCombo > 0, TEXT("OnAttackMontageEnded CurrentCombo > 0"))) return;
-
-    AttackEndComboState();
-
-    if (bWantsToSprint)
-    {
-        TargetSpeed = RunSpeed;
-    }
-}
-
-void ARogueCharacter::AttackStartComboState()
-{
-    CanNextCombo = true;
-    IsComboInputOn = false;
-    CurrentCombo = FMath::Clamp(CurrentCombo + 1, 1, MaxCombo);
-}
-
-void ARogueCharacter::AttackEndComboState()
-{
-    IsComboInputOn = false;
-    CanNextCombo = false;
-    CurrentCombo = 0;
-}
-
-void ARogueCharacter::Dodge()
-{
-    if (ActionState != ECharacterActionState::Idle &&
-        ActionState != ECharacterActionState::Walking &&
-        ActionState != ECharacterActionState::Running)
-    {
-        return;
-    }
-
-    if (!CharacterStat->ConsumeStamina(DodgeStaminaCost))
-    {
-        return;
-    }
-
-    FVector InputDir = GetLastMovementInputVector().GetSafeNormal();
-    if (InputDir.IsNearlyZero())
-    {
-        InputDir = GetActorForwardVector();
-    }
-
-    DodgeDirection = InputDir;
-
-    ActionState = ECharacterActionState::Dodging;
-    bDidDodgeTeleport = false;
-
-    if (DodgeMontage && RogueAnim)
-    {
-        RogueAnim->Montage_Play(DodgeMontage);
-    }
-}
-
-void ARogueCharacter::HandleDodgeEffectStart()
-{
-    bIsDodgeInvincible = true;
-    SetActorHiddenInGame(true);
-    if (DodgeEffect)
-    {
-        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), DodgeEffect, GetActorLocation(), GetActorRotation());
-    }
-
-    if (!bDidDodgeTeleport)
-    {
-        FVector NewLocation = GetActorLocation() + DodgeDirection * DodgeDistance;
-        FHitResult HitResult;
-        bool bMoved = SetActorLocation(NewLocation, true, &HitResult, ETeleportType::TeleportPhysics);
-
-        bDidDodgeTeleport = true;
-    }
-}
-
-void ARogueCharacter::HandleDodgeEffectEnd()
-{
-    bIsDodgeInvincible = false;
-    SetActorHiddenInGame(false);
 }
