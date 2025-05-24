@@ -78,7 +78,7 @@ void ARogueCharacter::Tick(float DeltaTime)
     UpdateMovementState();
     UpdateStatusWidget();
 
-    UE_LOG(LogTemp, Warning, TEXT("ActionState: %s"), *UEnum::GetValueAsString(ActionState));
+    //UE_LOG(LogTemp, Warning, TEXT("ActionState : %s, AttackType : %s"), *UEnum::GetValueAsString(ActionState), *UEnum::GetValueAsString(CombatComponent->GetAttackType()));
 }
 
 void ARogueCharacter::PostInitializeComponents()
@@ -111,15 +111,6 @@ float ARogueCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const&
 
     CharacterStat->SetDamage(FinalDamage);
 
-    if (CharacterStat->GetCurrentHP() <= 0 && EventInstigator)
-    {
-        ARogueCharacter* Killer = Cast<ARogueCharacter>(EventInstigator->GetPawn());
-        if (Killer && Killer != this)
-        {
-            Killer->CharacterStat->AddExp(10000);
-        }
-    }
-
     return FinalDamage;
 }
 
@@ -130,11 +121,11 @@ void ARogueCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &ARogueCharacter::StartSprinting);
     PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ARogueCharacter::StopSprinting);
     PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ARogueCharacter::Jump);
-    PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &ARogueCharacter::InputAttack);
-    PlayerInputComponent->BindAction("UseSkill", IE_Pressed, this, &ARogueCharacter::InputUseSkill);
+    PlayerInputComponent->BindAction("Attack", IE_Pressed, CombatComponent, &URogueCharacterCombatComponent::ComboAttack);
+    PlayerInputComponent->BindAction("UseSkill", IE_Pressed, CombatComponent, &URogueCharacterCombatComponent::UseSkill);
     PlayerInputComponent->BindAction("ZoomInCamera", IE_Pressed, this, &ARogueCharacter::ZoomInCamera);
     PlayerInputComponent->BindAction("ZoomOutCamera", IE_Pressed, this, &ARogueCharacter::ZoomOutCamera);
-    PlayerInputComponent->BindAction("Dodge", IE_Pressed, this, &ARogueCharacter::InputDodge);
+    PlayerInputComponent->BindAction("Dodge", IE_Pressed, DodgeComponent, &URogueCharacterDodgeComponent::Dodge);
 
     PlayerInputComponent->BindAxis("MoveForward", this, &ARogueCharacter::MoveForward);
     PlayerInputComponent->BindAxis("MoveRight", this, &ARogueCharacter::MoveRight);
@@ -301,29 +292,5 @@ void ARogueCharacter::SpawnDamageText(AActor* DamagedActor, float Damage)
     if (DamageText)
     {
         DamageText->SetDamage(Damage);
-    }
-}
-
-void ARogueCharacter::InputAttack()
-{
-    if (CombatComponent)
-    {
-        CombatComponent->Attack();
-    }
-}
-
-void ARogueCharacter::InputUseSkill()
-{
-    if (CombatComponent)
-    {
-        CombatComponent->UseSkill();
-    }
-}
-
-void ARogueCharacter::InputDodge()
-{
-    if (DodgeComponent)
-    {
-        DodgeComponent->Dodge();
     }
 }

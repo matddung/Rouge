@@ -3,6 +3,10 @@
 
 #include "RogueCharacterStatComponent.h"
 #include "RogueGameInstance.h"
+#include "RogueCharacterCombatComponent.h"
+#include "RogueCharacter.h"
+#include "RogueCharacterDodgeComponent.h"
+
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values for this component's properties
@@ -56,6 +60,16 @@ void URogueCharacterStatComponent::SetNewLevel(int32 NewLevel)
 void URogueCharacterStatComponent::SetDamage(float NewDamage)
 {
 	if (!ensureMsgf(CurrentStatData != nullptr, TEXT("CurrentStatData is nullptr")))
+	{
+		return;
+	}
+
+	auto Character = Cast<ARogueCharacter>(GetOwner());
+
+	auto CombatComponent = Character->FindComponentByClass<URogueCharacterCombatComponent>();
+	auto DodgeComponent = Character->FindComponentByClass<URogueCharacterDodgeComponent>();
+
+	if (CombatComponent->GetAttackType() == EAttackType::Skill || DodgeComponent->bIsDodgeInvincible)
 	{
 		return;
 	}

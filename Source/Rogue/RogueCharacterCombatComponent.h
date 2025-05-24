@@ -35,7 +35,7 @@ protected:
 	virtual void BeginPlay() override;
 
 public:	
-	void Attack();
+	void ComboAttack();
 	void DashAttack();
 	void JumpAttack();
 	void UseSkill();

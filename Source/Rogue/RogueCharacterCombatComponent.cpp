@@ -6,6 +6,7 @@
 #include "RogueAnimInstance.h"
 #include "RogueCharacterStatComponent.h"
 #include "RogueCharacterDodgeComponent.h"
+#include "EnemyBase.h"
 
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
@@ -46,7 +47,7 @@ void URogueCharacterCombatComponent::BeginPlay()
     }
 }
 
-void URogueCharacterCombatComponent::Attack()
+void URogueCharacterCombatComponent::ComboAttack()
 {
     
     if (Character->GetActionState() == ECharacterActionState::Attacking && AttackType != EAttackType::Combo)
@@ -76,6 +77,7 @@ void URogueCharacterCombatComponent::Attack()
 
     if (!ensureMsgf(CurrentCombo == 0, TEXT("Attack IsAttacking false")))
     {
+        AttackEndComboState();
         return;
     }
 
@@ -346,7 +348,7 @@ void URogueCharacterCombatComponent::PerformAttackHit(EAttackType PerformAttackT
             FDamageEvent DamageEvent;
             HitActor->TakeDamage(Damage, DamageEvent, Character->GetController(), Character);
 
-            if (ACharacter* DamagedCharacter = Cast<ACharacter>(HitActor))
+            if (AEnemyBase* Enemy = Cast<AEnemyBase>(HitActor))
             {
                 Character->SpawnDamageText(HitActor, Damage);
             }

@@ -4,11 +4,10 @@
 #include "RogueAnimInstance.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 URogueAnimInstance::URogueAnimInstance()
 {
-	IsInAir = false;
-	IsDead = false;
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> Attack_Montage(TEXT("/Game/Blueprints/AM_Attack"));
 	if (Attack_Montage.Succeeded())
 	{
@@ -22,6 +21,16 @@ void URogueAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	APawn* Pawn = TryGetPawnOwner();
 	if (!::IsValid(Pawn)) return;
+
+	if (Pawn)
+	{
+		FVector Velocity = Pawn->GetVelocity();
+
+		Speed = Velocity.Size();
+
+		FRotator Rotation = Pawn->GetActorRotation();
+		Direction = CalculateDirection(Velocity, Rotation);
+	}
 
 	if (!IsDead) {
 		ACharacter* Character = Cast<ACharacter>(Pawn);
@@ -37,6 +46,7 @@ void URogueAnimInstance::PlayAttackMontage()
 	{
 		return;
 	}
+
 	Montage_Play(AttackMontage, 1);
 }
 
