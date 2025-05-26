@@ -73,15 +73,15 @@ public:
 
     bool bIsAttacking = false;
 
-private:
-    UPROPERTY(EditDefaultsOnly, Category = "Data")
-    UDataTable* EnemyDataTable;
-
     UPROPERTY(EditAnywhere)
     UAnimMontage* AttackMontage;
 
     UPROPERTY()
     class UNormalEnemyAnimInstance* Anim;
+
+private:
+    UPROPERTY(EditDefaultsOnly, Category = "Data")
+    UDataTable* EnemyDataTable;
 
     UPROPERTY(VisibleAnywhere, Category = "Stats")
     float CurrentHealth;

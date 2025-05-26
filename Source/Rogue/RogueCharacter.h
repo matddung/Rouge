@@ -92,7 +92,7 @@ private:
 	float ZoomStep = 100;
 
 	UPROPERTY(VisibleAnywhere, Category = "Stat")
-	class URogueCharacterStatComponent* CharacterStat;
+	class URogueCharacterStatComponent* StatComponent;
 
 	UPROPERTY(VisibleAnywhere, Category = "Combat")
 	class URogueCharacterCombatComponent* CombatComponent;
@@ -111,4 +111,34 @@ private:
 
 	UPROPERTY()
 	class URogueAnimInstance* RogueAnim;
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LockOn")
+	float SearchRadius = 1000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LockOn")
+	float ViewAngle = 45.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LockOn")
+	float TurnSwitchThreshold = 0.2f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LockOn")
+	AActor* CurrentTarget = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LockOn")
+	TArray<AActor*> Targets;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LockOn")
+	float DegreesPerSecond = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LockOn")
+	float CameraInterpSpeed = 5;
+
+	void UpdateTargets();
+	void AcquireNearestTarget();
+	void SwitchTarget(float Direction);
+
+	void ToggleLockOn();
+	void OnTurn(float Value);
+	void OnLookUp(float Value);
 };

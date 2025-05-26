@@ -5,6 +5,8 @@
 #include "FloatingDamageActor.h"
 #include "RogueCharacterCombatComponent.h"
 #include "RogueCharacterDodgeComponent.h"
+#include "EnemyBase.h"
+#include "NormalEnemyAnimInstance.h"
 
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -46,7 +48,7 @@ ARogueCharacter::ARogueCharacter()
 
     GetCapsuleComponent()->SetCollisionProfileName(TEXT("RogueCharacter"));
 
-    CharacterStat = CreateDefaultSubobject<URogueCharacterStatComponent>(TEXT("CharacterStat"));
+    StatComponent = CreateDefaultSubobject<URogueCharacterStatComponent>(TEXT("StatComponent"));
     CombatComponent = CreateDefaultSubobject<URogueCharacterCombatComponent>(TEXT("CombatComponent"));
     DodgeComponent = CreateDefaultSubobject<URogueCharacterDodgeComponent>(TEXT("DodgeComponent"));
 
@@ -57,7 +59,7 @@ void ARogueCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-    check(CharacterStat);
+    check(StatComponent);
 	
     if (StatusWidgetClass)
     {
@@ -78,7 +80,45 @@ void ARogueCharacter::Tick(float DeltaTime)
     UpdateMovementState();
     UpdateStatusWidget();
 
-    //UE_LOG(LogTemp, Warning, TEXT("ActionState : %s, AttackType : %s"), *UEnum::GetValueAsString(ActionState), *UEnum::GetValueAsString(CombatComponent->GetAttackType()));
+    if (CurrentTarget)
+    {
+        UpdateTargets();
+
+        // 타겟 사망 처리
+        if (AEnemyBase* E = Cast<AEnemyBase>(CurrentTarget))
+        {
+            if (E->Anim->GetIsDead())
+            {
+                AcquireNearestTarget();
+                if (!CurrentTarget)
+                {
+                    ToggleLockOn();
+                    GetCharacterMovement()->bOrientRotationToMovement = true;
+                    return;
+                }
+            }
+        }
+
+        FVector MyLoc = GetActorLocation();
+        FVector TargetLoc = CurrentTarget->GetActorLocation();
+        FRotator DesiredRot = (TargetLoc - MyLoc).Rotation();
+
+        // 부드러운 캐릭터 회전 (보간 사용)
+        FRotator CurrRot = GetActorRotation();
+        FRotator TargetRot(0.f, DesiredRot.Yaw, 0.f);
+        FRotator NewRot = FMath::RInterpTo(CurrRot, TargetRot, DeltaTime, DegreesPerSecond);
+        SetActorRotation(NewRot);
+
+        // 카메라 피치 -30° 고정, 부드러운 보간
+        DesiredRot.Pitch = -30.f;
+        DesiredRot.Roll = 0.f;
+        if (APlayerController* PC = Cast<APlayerController>(GetController()))
+        {
+            FRotator CurrCam = PC->GetControlRotation();
+            FRotator NewCam = FMath::RInterpTo(CurrCam, DesiredRot, DeltaTime, CameraInterpSpeed);
+            PC->SetControlRotation(NewCam);
+        }
+    }
 }
 
 void ARogueCharacter::PostInitializeComponents()
@@ -90,14 +130,21 @@ void ARogueCharacter::PostInitializeComponents()
     {
         return;
     }
-
-    CombatComponent->InitializeWithAnim(RogueAnim);
-    DodgeComponent->InitializeWithAnim(RogueAnim);
-
-    CharacterStat->OnHPIsZero.AddLambda([this]() -> void {
-        SetActorEnableCollision(false);
-        RogueAnim->SetDeadAnim();
-     });
+    if (ensure(CombatComponent))
+    {
+        CombatComponent->InitializeWithAnim(RogueAnim);
+    }
+    if (ensure(DodgeComponent))
+    {
+        DodgeComponent->InitializeWithAnim(RogueAnim);
+    }
+    if (ensure(StatComponent))
+    {
+        StatComponent->OnHPIsZero.AddLambda([this]() {
+            SetActorEnableCollision(false);
+            RogueAnim->SetDeadAnim();
+        });
+    }
 }
 
 float ARogueCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
@@ -109,7 +156,7 @@ float ARogueCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const&
 
     float FinalDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-    CharacterStat->SetDamage(FinalDamage);
+    StatComponent->SetDamage(FinalDamage);
 
     return FinalDamage;
 }
@@ -129,8 +176,10 @@ void ARogueCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 
     PlayerInputComponent->BindAxis("MoveForward", this, &ARogueCharacter::MoveForward);
     PlayerInputComponent->BindAxis("MoveRight", this, &ARogueCharacter::MoveRight);
-    PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
-    PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
+    
+    PlayerInputComponent->BindAction("LockOn", IE_Pressed, this, &ARogueCharacter::ToggleLockOn);
+    PlayerInputComponent->BindAxis("Turn", this, &ARogueCharacter::OnTurn);
+    PlayerInputComponent->BindAxis("LookUp", this, &ARogueCharacter::OnLookUp);
 }
 
 void ARogueCharacter::UpdateMovementSpeed(float DeltaTime)
@@ -146,14 +195,14 @@ void ARogueCharacter::HandleStaminaLogic(float DeltaTime)
 
     if ((ActionState == ECharacterActionState::Idle || ActionState == ECharacterActionState::Walking) && !GetCharacterMovement()->IsFalling())
     {
-        CharacterStat->RecoverStamina(DeltaTime);
+        StatComponent->RecoverStamina(DeltaTime);
     }
 
     const float SprintSpeedThreshold = RunSpeed * 0.7f;
 
     if (bWantsToSprint && ActionState == ECharacterActionState::Running)
     {
-        if (!CharacterStat->ConsumeStamina(SprintStaminaCostPerSec * DeltaTime))
+        if (!StatComponent->ConsumeStamina(SprintStaminaCostPerSec * DeltaTime))
         {
             StopSprinting();
         }
@@ -191,10 +240,10 @@ void ARogueCharacter::UpdateStatusWidget()
 {
     if (!StatusWidget) return;
 
-    StatusWidget->UpdateHP(CharacterStat->GetCurrentHP(), CharacterStat->GetMaxHP());
-    StatusWidget->UpdateStamina(CharacterStat->GetCurrentStamina(), CharacterStat->GetMaxStamina());
-    StatusWidget->UpdateLevel(CharacterStat->GetLevel());
-    StatusWidget->UpdateExpBar(CharacterStat->GetCurrentExp(), CharacterStat->GetNextExp());
+    StatusWidget->UpdateHP(StatComponent->GetCurrentHP(), StatComponent->GetMaxHP());
+    StatusWidget->UpdateStamina(StatComponent->GetCurrentStamina(), StatComponent->GetMaxStamina());
+    StatusWidget->UpdateLevel(StatComponent->GetLevel());
+    StatusWidget->UpdateExpBar(StatComponent->GetCurrentExp(), StatComponent->GetNextExp());
 
     float RemainingCooldown = FMath::Max(0.0f, CombatComponent->SkillCooldownTime - (GetWorld()->GetTimeSeconds() - CombatComponent->LastSkillTime));
     StatusWidget->UpdateSkillCooldown(RemainingCooldown, CombatComponent->SkillCooldownTime);
@@ -269,7 +318,7 @@ void ARogueCharacter::Jump()
         return;
     }
 
-    if (!CharacterStat->ConsumeStamina(JumpStaminaCost))
+    if (!StatComponent->ConsumeStamina(JumpStaminaCost))
     {
         return;
     }
@@ -292,5 +341,137 @@ void ARogueCharacter::SpawnDamageText(AActor* DamagedActor, float Damage)
     if (DamageText)
     {
         DamageText->SetDamage(Damage);
+    }
+}
+
+void ARogueCharacter::UpdateTargets()
+{
+    Targets.Empty();
+    FVector Origin = GetActorLocation();
+    TArray<FOverlapResult> Overlaps;
+    FCollisionShape Sphere = FCollisionShape::MakeSphere(SearchRadius);
+
+    GetWorld()->OverlapMultiByObjectType(
+        Overlaps,
+        Origin,
+        FQuat::Identity,
+        FCollisionObjectQueryParams(ECC_Pawn),
+        Sphere
+    );
+
+    for (const FOverlapResult& Result : Overlaps)
+    {
+        AActor* Actor = Result.GetActor();
+        if (Actor && Actor->IsA(AEnemyBase::StaticClass()))
+        {
+            AEnemyBase* E = Cast<AEnemyBase>(Actor);
+            if (!E->Anim->GetIsDead())
+            {
+                FVector Dir = (Actor->GetActorLocation() - Origin).GetSafeNormal();
+                float AngleDeg = FMath::RadiansToDegrees(acosf(FVector::DotProduct(GetControlRotation().Vector(), Dir)));
+                if (AngleDeg <= ViewAngle)
+                {
+                    Targets.Add(Actor);
+                }
+            }
+        }
+    }
+}
+
+void ARogueCharacter::AcquireNearestTarget()
+{
+    UpdateTargets();
+
+    float BestDist = FLT_MAX;
+    AActor* Best = nullptr;
+    FVector MyLoc = GetActorLocation();
+
+    for (AActor* T : Targets)
+    {
+        float DistSqr = FVector::DistSquared(MyLoc, T->GetActorLocation());
+        if (DistSqr < BestDist)
+        {
+            BestDist = DistSqr;
+            Best = T;
+        }
+    }
+
+    CurrentTarget = Best;
+}
+
+void ARogueCharacter::SwitchTarget(float Direction)
+{
+    if (!CurrentTarget) return;
+
+    UpdateTargets();
+
+    APlayerController* PC = Cast<APlayerController>(GetController());
+    if (!PC) return;
+
+    FVector2D CurrentScreen;
+    PC->ProjectWorldLocationToScreen(CurrentTarget->GetActorLocation(), CurrentScreen);
+    AActor* NewTarget = nullptr;
+    float MinDelta = FLT_MAX;
+
+    for (AActor* T : Targets)
+    {
+        if (T == CurrentTarget) continue;
+        FVector2D ScreenPos;
+        PC->ProjectWorldLocationToScreen(T->GetActorLocation(), ScreenPos);
+        float DeltaX = ScreenPos.X - CurrentScreen.X;
+        if (FMath::Sign(DeltaX) == FMath::Sign(Direction) && FMath::Abs(DeltaX) < MinDelta)
+        {
+            MinDelta = FMath::Abs(DeltaX);
+            NewTarget = T;
+        }
+    }
+
+    if (NewTarget)
+    {
+        CurrentTarget = NewTarget;
+    }
+}
+
+void ARogueCharacter::ToggleLockOn()
+{
+    if (CurrentTarget)
+    {
+        CurrentTarget = nullptr;
+        GetCharacterMovement()->bOrientRotationToMovement = true;
+    }
+    else
+    {
+        AcquireNearestTarget();
+        GetCharacterMovement()->bOrientRotationToMovement = false;
+    }
+}
+
+void ARogueCharacter::OnTurn(float Value)
+{
+    if (CurrentTarget)
+    {
+        if (FMath::Abs(Value) > TurnSwitchThreshold)
+        {
+            SwitchTarget(FMath::Sign(Value));
+        }
+    }
+    else
+    {
+        AddControllerYawInput(Value);
+    }
+}
+
+void ARogueCharacter::OnLookUp(float Value)
+{
+    if (CurrentTarget)
+    {
+        if (FMath::Abs(Value) > TurnSwitchThreshold)
+        {
+            SwitchTarget(FMath::Sign(Value));
+        }
+    }
+    else
+    {
+        AddControllerPitchInput(Value);
     }
 }
